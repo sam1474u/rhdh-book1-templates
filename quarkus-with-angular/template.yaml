@@ -42,7 +42,7 @@ spec:
           title: Cluster Id
           type: string
           description: Id of the cluster
-          default: <XXX_XXX_XXX>
+          default: .apps.sdampocpclu07.infyit-ocp.com
         namespace: 
           title: Namespace
           type: string
@@ -59,11 +59,24 @@ spec:
           ui:options:
             catalogFilter:
               kind: [User]
+        organization:
+          title: Organization
+          type: string
+          description: Name of the organization
+        githubToken:
+          title: GitHub Token
+          type: string
+          description: Token for GitHub authentication
     - title: Provide Build Information
       required:
+        - image_repo
         - image_host
         - image_tag
       properties:
+        image_repo:
+          title: Image repo
+          type: string
+          description: repo
         image_host:
           title: Image Host
           type: string
@@ -82,8 +95,8 @@ spec:
         url: ./skeleton
         targetPath: ./source
         values:
-          git_host: gitlab-gitlab${{parameters.cluster_id}}
-          gitlabGroup: ${{parameters.gitlabGroup}}
+          git_host: github.com
+          gitlabGroup: ${{parameters.organization}}
           repoName: ${{parameters.namespace}}-${{parameters.application_id}}
           owner: ${{parameters.owner}}
           cluster_id: ${{parameters.cluster_id}}
@@ -92,14 +105,15 @@ spec:
           description: ${{parameters.description}}
     - id: publishSource
       name: Publishing to Source Code Repository
-      action: publish:gitlab
+      action: publish:github
       input:
         sourcePath: ./source
         description: ${{parameters.description}}
-        repoUrl: gitlab-gitlab${{parameters.cluster_id}}?owner=${{parameters.gitlabGroup}}&repo=${{parameters.namespace}}-${{parameters.application_id}}
+        repoUrl: github.com?owner=${{parameters.organization}}&repo=${{parameters.namespace}}-${{parameters.application_id}}
         defaultBranch: main
+        token: ${{ parameters.githubToken }}
         protectDefaultBranch: false
-        repoVisibility: public
+        repoVisibility: private
     - id: templateGitops
       name: Generating the deployment resources and artefacts
       action: fetch:template
@@ -107,31 +121,33 @@ spec:
         url: ./manifests
         copyWithoutTemplating: []
         values:
-          git_host: gitlab-gitlab${{parameters.cluster_id}}
+          git_host: github.com
           component_id: ${{parameters.namespace}}-${{parameters.application_id}}
           description: ${{parameters.description}}
-          destination: https://gitlab-gitlab${{parameters.cluster_id}}/${{parameters.gitlabGroup}}/${{parameters.namespace}}-${{parameters.application_id}}-gitops.git
-          source_repository: https://gitlab-gitlab${{parameters.cluster_id}}/${{parameters.gitlabGroup}}/${{parameters.namespace}}-${{parameters.application_id}}.git
+          destination: https://github.com/${{parameters.organization}}/${{parameters.namespace}}-${{parameters.application_id}}-gitops.git
+          source_repository: https://github.com/${{parameters.organization}}/${{parameters.namespace}}-${{parameters.application_id}}.git
           repository_name: ${{parameters.namespace}}-${{parameters.application_id}}
-          git_owner: ${{parameters.gitlabGroup}}
+          git_owner: ${{parameters.organization}}
+          token: ${{ parameters.githubToken }}
           cluster: ${{parameters.cluster_id}}
           namespace: ${{parameters.namespace}}
           image_host: ${{parameters.image_host}}
-          image_name: ${{parameters.namespace}}/${{parameters.application_id}}
+          image_name: ${{parameters.image_repo}}/${{parameters.application_id}}
           image_tag: ${{parameters.image_tag}}
           application_id: ${{parameters.application_id}}
         targetPath: ./tenant-gitops
     - id: publishGitops
       name: Publishing to Deployment Resource Repository
-      action: publish:gitlab
+      action: publish:github
       input:
-        repoUrl: gitlab-gitlab${{parameters.cluster_id}}?owner=${{parameters.gitlabGroup}}&repo=${{parameters.namespace}}-${{parameters.application_id}}-gitops
+        repoUrl: github.com?owner=${{parameters.organization}}&repo=${{parameters.namespace}}-${{parameters.application_id}}-gitops
         title: gitops resources for ${{parameters.namespace}}-${{parameters.application_id}}
         description: gitops resources for ${{parameters.namespace}}-${{parameters.application_id}}
         sourcePath: ./tenant-gitops
         defaultBranch: main
+        token: ${{ parameters.githubToken }}
         protectDefaultBranch: false
-        repoVisibility: public
+        repoVisibility: private
     - id: registerSource1
       name: Register Quarkus Service Component
       action: catalog:register
@@ -151,7 +167,9 @@ spec:
         appName: ${{parameters.namespace}}-${{parameters.application_id}}-bootstrap
         argoInstance: main
         namespace: janus-argocd
-        repoUrl: https://gitlab-gitlab${{parameters.cluster_id}}/${{parameters.gitlabGroup}}/${{parameters.namespace}}-${{parameters.application_id}}-gitops.git
+        owner: ${{parameters.owner}}
+        token: ${{ parameters.githubToken }}
+        repoUrl: https://github.com/${{parameters.organization}}/${{parameters.namespace}}-${{parameters.application_id}}-gitops.git
         path: 'argocd/'
   output:
     links:
